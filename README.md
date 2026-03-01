@@ -2,7 +2,7 @@
 
 ChatAutoReply is a lightweight rule-based auto-response addon for World of Warcraft.
 
-It allows you to define multiple reply rules with per-channel control, match modes, cooldowns, and export/import functionality.
+It allows you to define multiple reply rules with per-channel control, match modes, and cooldowns functionality.
 
 Designed primarily for guild utility use.
 
@@ -22,7 +22,6 @@ Designed primarily for guild utility use.
 - Optional:
   - Ignore your own messages
   - Ignore likely addon/bot messages
-- Export and import configuration
 - Resizable UI
 - First-match priority system (rules are evaluated top to bottom)
 
@@ -81,5 +80,6 @@ Use responsibly and in accordance with Blizzard's addon policies.
 ---
 
 ## License
+
 
 I don't know, if you steal it, give me some credit.
