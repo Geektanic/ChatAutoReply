@@ -1,4 +1,4 @@
--- ChatAutoReply.lua (v3 - Multi Rules + Per-rule Channels + Match Modes + Export/Import + Resizable UI)
+-- ChatAutoReply.lua
 
 local ADDON_NAME = ...
 ChatAutoReplyDB = ChatAutoReplyDB or {}
@@ -267,179 +267,6 @@ local function HandleMessage(eventName, msg, sender)
   end
 end
 
--- ============================================================
--- Export / Import
--- Strategy:
--- - Export is a Lua table literal string.
--- - Import uses loadstring if available.
--- This is the common “copy/paste config” pattern in WoW.
--- ============================================================
-local function BuildExportTable()
-  local out = {
-    version = 1,
-    ignoreCase = ChatAutoReplyDB.ignoreCase and true or false,
-    globalCooldownSeconds = tonumber(ChatAutoReplyDB.globalCooldownSeconds) or 0,
-    ignoreSelf = ChatAutoReplyDB.ignoreSelf and true or false,
-    ignoreLikelyAddonMessages = ChatAutoReplyDB.ignoreLikelyAddonMessages and true or false,
-    rules = {},
-  }
-
-  for i, r in ipairs(ChatAutoReplyDB.rules or {}) do
-    local rr = NormalizeRule(r)
-    table.insert(out.rules, {
-      enabled = rr.enabled and true or false,
-      name = rr.name or ("Rule " .. i),
-      matchMode = (rr.matchMode or "CONTAINS"):upper(),
-      matchText = rr.matchText or "",
-      replyText = rr.replyText or "",
-      perSenderCooldownSeconds = tonumber(rr.perSenderCooldownSeconds) or 0,
-      channels = {
-        guild = rr.channels.guild and true or false,
-        party = rr.channels.party and true or false,
-        raid  = rr.channels.raid and true or false,
-        whisper = rr.channels.whisper and true or false,
-        say = rr.channels.say and true or false,
-        yell = rr.channels.yell and true or false,
-      },
-    })
-  end
-
-  return out
-end
-
-local function SerializeLua(value, indent)
-  indent = indent or 0
-  local t = type(value)
-
-  if t == "number" then
-    return tostring(value)
-  elseif t == "boolean" then
-    return value and "true" or "false"
-  elseif t == "string" then
-    -- %q handles escaping safely
-    return string.format("%q", value)
-  elseif t == "table" then
-    local pad = string.rep("  ", indent)
-    local pad2 = string.rep("  ", indent + 1)
-    local isArray = true
-    local maxIndex = 0
-    for k, _ in pairs(value) do
-      if type(k) ~= "number" then isArray = false break end
-      if k > maxIndex then maxIndex = k end
-    end
-
-    local parts = {}
-    table.insert(parts, "{")
-    if isArray then
-      for i = 1, maxIndex do
-        table.insert(parts, pad2 .. SerializeLua(value[i], indent + 1) .. ",")
-      end
-    else
-      for k, v in pairs(value) do
-        local key
-        if type(k) == "string" and k:match("^[%a_][%w_]*$") then
-          key = k
-        else
-          key = "[" .. SerializeLua(k, indent + 1) .. "]"
-        end
-        table.insert(parts, pad2 .. key .. " = " .. SerializeLua(v, indent + 1) .. ",")
-      end
-    end
-    table.insert(parts, pad .. "}")
-    return table.concat(parts, "\n")
-  else
-    return "nil"
-  end
-end
-
-local function GetExportString()
-  local tbl = BuildExportTable()
-  return "CARCFG=" .. SerializeLua(tbl)
-end
-
-local function TryImportString(s)
-  if not s or s == "" then return false, "Empty import string." end
-
-  -- Allow with or without prefix
-  s = s:gsub("^%s+", ""):gsub("%s+$", "")
-  s = s:gsub("^CARCFG%s*=%s*", "")
-
-  if not loadstring then
-    return false, "This client does not support loadstring; import is unavailable."
-  end
-
-  local chunk, err = loadstring("return " .. s)
-  if not chunk then
-    return false, "Parse error: " .. tostring(err)
-  end
-
-  local ok, data = pcall(chunk)
-  if not ok then
-    return false, "Load error: " .. tostring(data)
-  end
-
-  if type(data) ~= "table" or type(data.rules) ~= "table" then
-    return false, "Invalid config format."
-  end
-
-  -- Apply imported config
-  ChatAutoReplyDB.ignoreCase = data.ignoreCase and true or false
-  ChatAutoReplyDB.globalCooldownSeconds = tonumber(data.globalCooldownSeconds) or 0
-  ChatAutoReplyDB.ignoreSelf = data.ignoreSelf and true or false
-  ChatAutoReplyDB.ignoreLikelyAddonMessages = data.ignoreLikelyAddonMessages and true or false
-
-  ChatAutoReplyDB.rules = {}
-  for i, r in ipairs(data.rules) do
-    table.insert(ChatAutoReplyDB.rules, NormalizeRule(r))
-  end
-
-  return true, "Imported " .. tostring(#ChatAutoReplyDB.rules) .. " rules."
-end
-
--- Copy/paste popup
-StaticPopupDialogs["CAR_EXPORT"] = {
-  text = "ChatAutoReply Export\nCopy the text below:",
-  button1 = "Close",
-  hasEditBox = true,
-  editBoxWidth = 380,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  preferredIndex = 3,
-  OnShow = function(self, data)
-    self.editBox:SetText(data or "")
-    self.editBox:HighlightText()
-    self.editBox:SetFocus()
-  end,
-  EditBoxOnEnterPressed = function(self) self:ClearFocus() end,
-}
-
-StaticPopupDialogs["CAR_IMPORT"] = {
-  text = "ChatAutoReply Import\nPaste the exported text below:",
-  button1 = "Import",
-  button2 = "Cancel",
-  hasEditBox = true,
-  editBoxWidth = 380,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  preferredIndex = 3,
-  OnShow = function(self)
-    self.editBox:SetText("")
-    self.editBox:SetFocus()
-  end,
-  OnAccept = function(self)
-    local txt = self.editBox:GetText()
-    local ok, msg = TryImportString(txt)
-    if ok then
-      DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ChatAutoReply:|r " .. msg)
-      -- Refresh UI if open
-      if UI and UI.RefreshAll then UI.RefreshAll() end
-    else
-      DEFAULT_CHAT_FRAME:AddMessage("|cffff3333ChatAutoReply:|r " .. msg)
-    end
-  end,
-}
 
 -- ============================================================
 -- UI
@@ -551,7 +378,7 @@ local function CreateUI()
 
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   title:SetPoint("TOP", 0, -10)
-  title:SetText("ChatAutoReply (Rules)")
+  title:SetText("ChatAutoReply")
 
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -4, -4)
@@ -1051,31 +878,6 @@ SlashCmdList["CHATAUTOREPLY"] = function(msg)
   msg = (msg or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local cmd, rest = msg:match("^(%S+)%s*(.*)$")
   cmd = cmd and cmd:lower() or ""
-
-  if cmd == "export" then
-    local s = GetExportString()
-    StaticPopup_Show("CAR_EXPORT", nil, nil, s)
-    return
-  elseif cmd == "import" then
-    if rest and rest ~= "" then
-      local ok, m = TryImportString(rest)
-      if ok then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ChatAutoReply:|r " .. m)
-        if UI and UI.RefreshAll then UI.RefreshAll() end
-      else
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff3333ChatAutoReply:|r " .. m)
-      end
-    else
-      StaticPopup_Show("CAR_IMPORT")
-    end
-    return
-  elseif cmd == "help" then
-    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ChatAutoReply:|r Commands:")
-    DEFAULT_CHAT_FRAME:AddMessage("  /car           - toggle window")
-    DEFAULT_CHAT_FRAME:AddMessage("  /car export    - export config")
-    DEFAULT_CHAT_FRAME:AddMessage("  /car import    - import config")
-    return
-  end
 
   CreateUI()
   if UI.frame:IsShown() then UI.frame:Hide() else UI.frame:Show() end
