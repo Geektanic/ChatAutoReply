@@ -30,6 +30,7 @@ local defaults = {
         whisper = true,
         say = false,
         yell = false,
+        guildAchievement = false,
       },
     },
   },
@@ -76,6 +77,7 @@ local function NormalizeRule(rule)
   if ch.whisper == nil then ch.whisper = true end
   if ch.say == nil then ch.say = false end
   if ch.yell == nil then ch.yell = false end
+  if ch.guildAchievement == nil then ch.guildAchievement = false end
 
   return rule
 end
@@ -174,6 +176,10 @@ local function RuleMatches(rule, msg)
 
   local mode = (rule.matchMode or "CONTAINS"):upper()
 
+  if mode == "ANY" then
+    return true
+  end
+
   if mode == "EXACT" then
     return hay == needle
   elseif mode == "STARTS" then
@@ -236,6 +242,7 @@ local EVENT_MAP = {
   CHAT_MSG_WHISPER =      { kind = "WHISPER", key = "whisper" },
   CHAT_MSG_SAY =          { kind = "SAY",     key = "say" },
   CHAT_MSG_YELL =         { kind = "YELL",    key = "yell" },
+  CHAT_MSG_GUILD_ACHIEVEMENT = { kind = "GUILD", key = "guildAchievement" },
 }
 
 local function HandleMessage(eventName, msg, sender)
@@ -313,6 +320,7 @@ local function DeepCopy(t)
 end
 
 local MATCH_MODES = {
+  { key = "ANY", text = "Any message" },
   { key = "CONTAINS", text = "Contains" },
   { key = "STARTS",   text = "Starts With" },
   { key = "EXACT",    text = "Exact" },
@@ -589,6 +597,9 @@ local function CreateUI()
   AddRuleChan("whisper", "Whisper", 0)
   AddRuleChan("say",     "Say",     110)
   AddRuleChan("yell",    "Yell",    220)
+  y = y - (LINE + GAP)
+
+  AddRuleChan("guildAchievement", "Guild Achv", 0)
   y = y - (LINE + GAP)
 
   UI.testBtn = CreateFrame("Button", nil, right, "UIPanelButtonTemplate")
