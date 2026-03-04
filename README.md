@@ -17,6 +17,7 @@ Designed primarily for guild utility use.
   - Starts With
   - Exact
   - Whole Word
+- Guild achievements
 - Per-sender cooldown
 - Global safety cooldown
 - Optional:
