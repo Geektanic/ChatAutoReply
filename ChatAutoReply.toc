@@ -2,7 +2,7 @@
 ## Title: ChatAutoReply
 ## Notes: Auto-reply rules for chat messages (per-channel, match modes).
 ## Author: Geektanic
-## Version: 1.0.1
+## Version: 1.0.2
 ## SavedVariables: ChatAutoReplyDB
 ## X-Website: https://www.curseforge.com/wow/addons/chatautoreply
 ## X-Curse-Project-ID: 1474329
